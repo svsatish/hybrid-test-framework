@@ -1,0 +1,102 @@
+plugins {
+    id 'java'
+}
+
+group = 'org.practice'
+version = '1.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+def allureVersion = '2.25.0'
+def restAssuredVersion = '5.4.0'
+def seleniumVersion = '4.18.1'
+def testngVersion = '7.10.2'
+def log4jVersion = '2.25.3'         // CVE-2025-68161 fix
+def aspectjVersion = '1.9.22.1'
+
+configurations {
+    agent
+}
+
+dependencies {
+    // TestNG
+    testImplementation "org.testng:testng:${testngVersion}"
+
+    // RestAssured + JSON Schema Validator
+    testImplementation "io.rest-assured:rest-assured:${restAssuredVersion}"
+    testImplementation "io.rest-assured:json-schema-validator:${restAssuredVersion}"
+
+    // Selenium + WebDriverManager
+    implementation "org.seleniumhq.selenium:selenium-java:${seleniumVersion}"
+    implementation 'io.github.bonigarcia:webdrivermanager:6.1.0'  // CVE-2025-4641 fix
+
+    // Allure TestNG integration
+    implementation "io.qameta.allure:allure-java-commons:${allureVersion}"
+    testImplementation "io.qameta.allure:allure-testng:${allureVersion}"
+    testImplementation "io.qameta.allure:allure-rest-assured:${allureVersion}"
+
+    // AspectJ weaver for Allure
+    agent "org.aspectj:aspectjweaver:${aspectjVersion}"
+
+    // Logging: Log4j2 + SLF4J bridge
+    implementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-slf4j2-impl:${log4jVersion}"
+
+    // Jackson for JSON data loading
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+
+    // JCodec for MP4 video encoding (pure Java, no native dependencies)
+    implementation 'org.jcodec:jcodec:0.2.5'
+    implementation 'org.jcodec:jcodec-javase:0.2.5'
+
+    // Commons IO (utility)
+    implementation 'commons-io:commons-io:2.15.1'
+}
+
+test {
+    useTestNG() {
+        suites 'src/test/resources/suites/testng-suite.xml'
+    }
+    systemProperty 'allure.results.directory', layout.buildDirectory.dir("allure-results").get().asFile.path
+    // Forward environment selection to test JVM
+    systemProperty 'env', System.getProperty('env', '')
+    jvmArgs "-javaagent:${configurations.agent.singleFile}"
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        showStandardStreams = true
+    }
+
+    // Copy Allure supplementary files into results directory after tests
+    doLast {
+        def allureResultsDir = layout.buildDirectory.dir("allure-results").get().asFile
+        // Generate environment.properties dynamically
+        def envFile = new File(allureResultsDir, "environment.properties")
+        envFile.text = """\
+Environment=${System.getProperty('env', 'default')}
+Browser=${System.getProperty('browser', 'chrome')}
+Headless=${System.getProperty('headless', 'true')}
+OS=${System.getProperty('os.name')} ${System.getProperty('os.version')}
+Java=${System.getProperty('java.version')}
+Gradle=${gradle.gradleVersion}
+API.Base.URL=${System.getProperty('api.base.url', 'https://restful-booker.herokuapp.com')}
+UI.Base.URL=${System.getProperty('ui.base.url', 'https://www.saucedemo.com')}
+"""
+        // Copy categories.json
+        def categoriesSrc = file('src/test/resources/categories.json')
+        if (categoriesSrc.exists()) {
+            copy {
+                from categoriesSrc
+                into allureResultsDir
+            }
+        }
+    }
+}

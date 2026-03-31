@@ -1,0 +1,21 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Hybrid Test Suite" verbose="2" parallel="tests" thread-count="2">
+
+    <listeners>
+        <listener class-name="com.framework.listeners.RetryTransformer"/>
+    </listeners>
+
+    <test name="API Tests">
+        <packages>
+            <package name="com.tests.api"/>
+        </packages>
+    </test>
+
+    <test name="UI Tests">
+        <packages>
+            <package name="com.tests.ui"/>
+        </packages>
+    </test>
+
+</suite>
+

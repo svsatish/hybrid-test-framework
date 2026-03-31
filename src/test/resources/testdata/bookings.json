@@ -1,0 +1,58 @@
+[
+  {
+    "testDescription": "Valid booking with all fields",
+    "expectedStatus": 200,
+    "firstname": "Alice",
+    "lastname": "Smith",
+    "totalprice": 200,
+    "depositpaid": true,
+    "bookingdates": {
+      "checkin": "2026-03-01",
+      "checkout": "2026-03-10"
+    },
+    "additionalneeds": "Lunch"
+  },
+  {
+    "testDescription": "Valid booking without additionalneeds",
+    "expectedStatus": 200,
+    "firstname": "Bob",
+    "lastname": "Jones",
+    "totalprice": 50,
+    "depositpaid": false,
+    "bookingdates": {
+      "checkin": "2026-06-15",
+      "checkout": "2026-06-20"
+    }
+  },
+  {
+    "testDescription": "Booking with zero price (boundary)",
+    "expectedStatus": 200,
+    "firstname": "Charlie",
+    "lastname": "Zero",
+    "totalprice": 0,
+    "depositpaid": true,
+    "bookingdates": {
+      "checkin": "2026-01-01",
+      "checkout": "2026-01-02"
+    },
+    "additionalneeds": "Nothing"
+  },
+  {
+    "testDescription": "Booking with very long names (boundary)",
+    "expectedStatus": 200,
+    "firstname": "Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "lastname": "Bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "totalprice": 100,
+    "depositpaid": true,
+    "bookingdates": {
+      "checkin": "2026-12-25",
+      "checkout": "2026-12-31"
+    }
+  },
+  {
+    "testDescription": "Booking with missing required fields (negative)",
+    "expectedStatus": 500,
+    "firstname": "OnlyFirst"
+  }
+]
+

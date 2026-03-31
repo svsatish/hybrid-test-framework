@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Product Defects",
+    "description": "Tests that found actual bugs",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Known Issues",
+    "description": "Tests with known defects (marked as flaky)",
+    "matchedStatuses": ["broken"],
+    "flaky": true
+  },
+  {
+    "name": "Test Defects",
+    "description": "Tests broken due to test code issues",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Passed",
+    "matchedStatuses": ["passed"]
+  },
+  {
+    "name": "Skipped",
+    "matchedStatuses": ["skipped"]
+  }
+]
+
