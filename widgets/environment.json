@@ -1,1 +1,1 @@
-[]
+[{"values":["qa"],"name":"Environment"},{"values":["chrome"],"name":"Browser"},{"values":["true"],"name":"Headless"},{"values":["Linux 6.17.0-1008-azure"],"name":"OS"},{"values":["21.0.10"],"name":"Java"},{"values":["9.0.0"],"name":"Gradle"},{"values":["https://restful-booker.herokuapp.com"],"name":"API.Base.URL"},{"values":["https://www.saucedemo.com"],"name":"UI.Base.URL"}]
