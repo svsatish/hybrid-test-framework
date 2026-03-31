@@ -37,7 +37,7 @@ on:
     - cron: '0 6 * * *'
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -128,9 +128,6 @@ jobs:
     needs: test
     if: always()
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       # ---------------------------------------------------
@@ -152,10 +149,9 @@ jobs:
           path: allure-results
 
       # ---------------------------------------------------
-      # 3. Download previous Allure history from gh-pages
-      #    This enables trend charts across runs
+      # 3. Checkout gh-pages branch for Allure history
       # ---------------------------------------------------
-      - name: Get Allure history from gh-pages
+      - name: Checkout gh-pages branch
         uses: actions/checkout@v4
         with:
           ref: gh-pages
@@ -180,63 +176,35 @@ jobs:
           curl -sL https://github.com/allure-framework/allure2/releases/download/2.25.0/allure-2.25.0.tgz | tar -xz
           echo "$PWD/allure-2.25.0/bin" >> $GITHUB_PATH
 
-      - name: Verify allure-results
-        run: |
-          echo "--- workspace root ---"
-          ls -la
-          echo "--- allure-results ---"
-          ls -la allure-results/ || echo "❌ allure-results directory missing!"
-          echo "--- file count ---"
-          find allure-results -type f | wc -l
-
       - name: Generate Allure report
         run: |
-          java -version
-          allure --version
           allure generate allure-results -o allure-report --clean
           echo "✅ Allure report generated"
 
-      # Disable Jekyll — Allure uses files/dirs that Jekyll would strip
-      - name: Add .nojekyll
-        run: touch allure-report/.nojekyll
-
-      - name: Verify report contents
+      - name: Verify report
         run: |
-          echo "--- allure-report root ---"
           ls -la allure-report/
-          echo "--- checking index.html ---"
-          if [ ! -f "allure-report/index.html" ]; then
-            echo "❌ ERROR: index.html not found in allure-report!"
-            exit 1
-          fi
-          echo "✅ index.html found ($(wc -c < allure-report/index.html) bytes)"
+          test -f allure-report/index.html || (echo "❌ index.html missing!" && exit 1)
+          echo "✅ index.html found"
 
       # ---------------------------------------------------
-      # 5. Preserve history for next run
+      # 5. Deploy to gh-pages branch
       # ---------------------------------------------------
-      - name: Copy history to report
+      - name: Deploy to gh-pages branch
         run: |
-          if [ -d "allure-report/history" ]; then
-            echo "✅ History folder present in report"
-          fi
+          # Add .nojekyll to prevent Jekyll processing
+          touch allure-report/.nojekyll
 
-      # ---------------------------------------------------
-      # 6. Deploy to GitHub Pages
-      # ---------------------------------------------------
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+          cd allure-report
 
-      - name: Upload report to Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: allure-report
+          git init
+          git checkout -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy Allure Report — $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Report URL
-        run: |
           echo "==========================================="
           echo "📊 Allure Report published at:"
           echo "   https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
