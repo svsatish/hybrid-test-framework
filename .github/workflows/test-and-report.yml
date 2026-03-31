@@ -174,6 +174,20 @@ jobs:
           allure generate allure-results -o allure-report --clean
           echo "✅ Allure report generated"
 
+      # Disable Jekyll — Allure uses files/dirs that Jekyll would strip
+      - name: Add .nojekyll
+        run: touch allure-report/.nojekyll
+
+      - name: Verify report contents
+        run: |
+          echo "--- allure-report contents ---"
+          ls -la allure-report/
+          if [ ! -f "allure-report/index.html" ]; then
+            echo "❌ ERROR: index.html not found in allure-report!"
+            exit 1
+          fi
+          echo "✅ index.html found"
+
       # ---------------------------------------------------
       # 5. Preserve history for next run
       # ---------------------------------------------------
