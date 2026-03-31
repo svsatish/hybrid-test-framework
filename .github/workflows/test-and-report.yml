@@ -38,24 +38,17 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
-
-# Only allow one deployment at a time to GitHub Pages
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   test:
-    name: Run Tests
+    name: Run Tests & Publish Report
     runs-on: ubuntu-latest
 
     steps:
       # ---------------------------------------------------
       # 1. Checkout code
       # ---------------------------------------------------
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       # ---------------------------------------------------
@@ -93,123 +86,72 @@ jobs:
             -Dbrowser=${{ github.event.inputs.browser || 'chrome' }} \
             -Dheadless=${{ github.event.inputs.headless || 'true' }}
 
-      # ---------------------------------------------------
-      # 6. Upload allure-results as artifact
-      # ---------------------------------------------------
-      - name: Verify allure-results exist
+      - name: Debug - Check test outputs
         if: always()
         run: |
-          echo "--- build/allure-results ---"
-          ls -la build/allure-results/ 2>/dev/null || echo "⚠️ allure-results directory not found"
-          find build/allure-results -type f 2>/dev/null | wc -l || echo "0 files"
+          echo "=== Java version ==="
+          java -version 2>&1
+          echo "=== Gradle version ==="
+          ./gradlew --version 2>&1 | head -8
+          echo "=== build/allure-results ==="
+          ls -la build/allure-results/ 2>/dev/null && find build/allure-results -type f | wc -l || echo "NOT FOUND"
+          echo "=== build/reports ==="
+          ls -la build/reports/tests/ 2>/dev/null || echo "NOT FOUND"
+
+      # ---------------------------------------------------
+      # 6. Copy Allure history
+      # ---------------------------------------------------
+      - name: Copy Allure history
+        if: always()
+        run: |
+          mkdir -p allure-results/history
+          cp -r allure-report/history allure-results/history || echo "no history"
+
+      # ---------------------------------------------------
+      # 7. Install Allure CLI and generate report
+      # ---------------------------------------------------
+      - name: Install Allure CLI
+        if: always()
+        run: |
+          curl -sL https://github.com/allure-framework/allure2/releases/download/2.25.0/allure-2.25.0.tgz | tar -xz
+          echo "$PWD/allure-2.25.0/bin" >> $GITHUB_PATH
+
+      - name: Generate Allure report
+        if: always()
+        run: |
+          mkdir -p allure-results
+          cp -r build/allure-results/* allure-results/ 2>/dev/null || true
+          echo "=== allure-results file count ==="
+          find allure-results -type f | wc -l
+          allure generate allure-results -o allure-report --clean
+          echo "=== allure-report generated ==="
+          ls allure-report/index.html && echo "✅ index.html exists" || echo "❌ index.html MISSING"
+
+      # ---------------------------------------------------
+      # 8. Upload Allure report and results
+      # ---------------------------------------------------
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
 
       - name: Upload Allure results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results
-          path: build/allure-results/
-          if-no-files-found: warn
-          retention-days: 30
-
-      # ---------------------------------------------------
-      # 7. Upload test report (Gradle HTML) as artifact
-      # ---------------------------------------------------
-      - name: Upload Gradle test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-test-report
-          path: build/reports/tests/
-          retention-days: 30
-
-  report:
-    name: Generate & Publish Allure Report
-    needs: test
-    if: always()
-    runs-on: ubuntu-latest
-
-    steps:
-      # ---------------------------------------------------
-      # 1. Checkout repo (peaceiris/actions-gh-pages needs .git in workspace root)
-      # ---------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # ---------------------------------------------------
-      # 2. Set up JDK (Allure CLI requires Java to run)
-      # ---------------------------------------------------
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      # ---------------------------------------------------
-      # 2. Download allure-results from test job
-      # ---------------------------------------------------
-      - name: Download Allure results
-        uses: actions/download-artifact@v4
-        with:
-          name: allure-results
           path: allure-results
 
       # ---------------------------------------------------
-      # 3. Checkout gh-pages branch for Allure history
+      # 9. Deploy to GitHub Pages
       # ---------------------------------------------------
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: gh-pages
-        continue-on-error: true
-
-      - name: Restore Allure history
-        run: |
-          mkdir -p allure-results/history
-          if [ -d "gh-pages/history" ]; then
-            cp -r gh-pages/history/* allure-results/history/ || true
-            echo "✅ Previous Allure history restored"
-          else
-            echo "⚠️ No previous history found (first run?)"
-          fi
-
-      # ---------------------------------------------------
-      # 4. Install Allure CLI and generate report
-      # ---------------------------------------------------
-      - name: Install Allure CLI
-        run: |
-          curl -sL https://github.com/allure-framework/allure2/releases/download/2.25.0/allure-2.25.0.tgz | tar -xz
-          echo "$PWD/allure-2.25.0/bin" >> $GITHUB_PATH
-
-      - name: Generate Allure report
-        run: |
-          allure generate allure-results -o allure-report --clean
-          echo "✅ Allure report generated"
-
-      - name: Verify report
-        run: |
-          ls -la allure-report/
-          test -f allure-report/index.html || (echo "❌ index.html missing!" && exit 1)
-          echo "✅ index.html found"
-
-      # ---------------------------------------------------
-      # 5. Deploy to gh-pages branch
-      # ---------------------------------------------------
-      - name: Deploy to gh-pages branch
+      - name: Deploy to GitHub Pages
+        if: always()
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./allure-report
-          publish_branch: gh-pages
-          force_orphan: true
-
-      - name: Report URL
-        run: |
-
-          echo "==========================================="
-          echo "📊 Allure Report published at:"
-          echo "   https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-          echo "==========================================="
 
 

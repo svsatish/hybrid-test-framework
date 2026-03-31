@@ -75,10 +75,17 @@ test {
         showStandardStreams = true
     }
 
-    // Copy Allure supplementary files into results directory after tests
+    // Ensure allure supplementary files are copied even when tests fail
+    ignoreFailures = true
+    finalizedBy 'copyAllureEnv'
+}
+
+tasks.register('copyAllureEnv') {
+    description 'Copies environment info and categories into allure-results'
     doLast {
         def allureResultsDir = layout.buildDirectory.dir("allure-results").get().asFile
-        // Generate environment.properties dynamically
+        if (!allureResultsDir.exists()) allureResultsDir.mkdirs()
+
         def envFile = new File(allureResultsDir, "environment.properties")
         envFile.text = """\
 Environment=${System.getProperty('env', 'default')}
@@ -90,7 +97,6 @@ Gradle=${gradle.gradleVersion}
 API.Base.URL=${System.getProperty('api.base.url', 'https://restful-booker.herokuapp.com')}
 UI.Base.URL=${System.getProperty('ui.base.url', 'https://www.saucedemo.com')}
 """
-        // Copy categories.json
         def categoriesSrc = file('src/test/resources/categories.json')
         if (categoriesSrc.exists()) {
             copy {
