@@ -12,28 +12,20 @@ on:
         required: false
         default: 'qa'
         type: choice
-        options:
-          - qa
-          - staging
-          - prod
+        options: [ qa, staging, prod ]
       browser:
         description: 'Browser to run UI tests'
         required: false
         default: 'chrome'
         type: choice
-        options:
-          - chrome
-          - firefox
+        options: [ chrome, firefox ]
       headless:
         description: 'Run in headless mode'
         required: false
         default: 'true'
         type: choice
-        options:
-          - 'true'
-          - 'false'
+        options: [ 'true', 'false' ]
   schedule:
-    # Run every day at 6 AM UTC
     - cron: '0 6 * * *'
 
 permissions:
@@ -45,39 +37,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ---------------------------------------------------
-      # 1. Checkout code
-      # ---------------------------------------------------
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ---------------------------------------------------
-      # 2. Set up JDK 21 (Gradle 9 requires JDK 21+; source/target stays at 17)
-      # ---------------------------------------------------
-      - name: Set up JDK 21
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: '24'
           cache: 'gradle'
 
-      # ---------------------------------------------------
-      # 3. Set up Chrome for UI tests
-      # ---------------------------------------------------
       - name: Set up Chrome
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: 'stable'
 
-      # ---------------------------------------------------
-      # 4. Grant execute permission to Gradle wrapper
-      # ---------------------------------------------------
-      - name: Grant execute permission to gradlew
+      - name: Grant execute permission
         run: chmod +x gradlew
 
-      # ---------------------------------------------------
-      # 5. Run tests
-      # ---------------------------------------------------
+      - name: Verify setup
+        run: |
+          java -version
+          ./gradlew --version
+
       - name: Run tests
         continue-on-error: true
         run: |
@@ -86,50 +68,23 @@ jobs:
             -Dbrowser=${{ github.event.inputs.browser || 'chrome' }} \
             -Dheadless=${{ github.event.inputs.headless || 'true' }}
 
-      - name: Debug - Check test outputs
-        if: always()
-        run: |
-          echo "=== Java version ==="
-          java -version 2>&1
-          echo "=== Gradle version ==="
-          ./gradlew --version 2>&1 | head -8
-          echo "=== build/allure-results ==="
-          ls -la build/allure-results/ 2>/dev/null && find build/allure-results -type f | wc -l || echo "NOT FOUND"
-          echo "=== build/reports ==="
-          ls -la build/reports/tests/ 2>/dev/null || echo "NOT FOUND"
-
-      # ---------------------------------------------------
-      # 6. Copy Allure history
-      # ---------------------------------------------------
-      - name: Copy Allure history
-        if: always()
-        run: |
-          mkdir -p allure-results/history
-          cp -r allure-report/history allure-results/history || echo "no history"
-
-      # ---------------------------------------------------
-      # 7. Install Allure CLI and generate report
-      # ---------------------------------------------------
       - name: Install Allure CLI
         if: always()
         run: |
           curl -sL https://github.com/allure-framework/allure2/releases/download/2.25.0/allure-2.25.0.tgz | tar -xz
           echo "$PWD/allure-2.25.0/bin" >> $GITHUB_PATH
 
-      - name: Generate Allure report
+      - name: Prepare Allure results
         if: always()
         run: |
           mkdir -p allure-results
-          cp -r build/allure-results/* allure-results/ 2>/dev/null || true
-          echo "=== allure-results file count ==="
-          find allure-results -type f | wc -l
-          allure generate allure-results -o allure-report --clean
-          echo "=== allure-report generated ==="
-          ls allure-report/index.html && echo "✅ index.html exists" || echo "❌ index.html MISSING"
+          cp -r build/allure-results/* allure-results/ 2>/dev/null || echo "No test results found"
+          ls -la allure-results/
 
-      # ---------------------------------------------------
-      # 8. Upload Allure report and results
-      # ---------------------------------------------------
+      - name: Generate Allure report
+        if: always()
+        run: allure generate allure-results -o allure-report --clean
+
       - name: Upload Allure report
         if: always()
         uses: actions/upload-artifact@v4
@@ -137,21 +92,9 @@ jobs:
           name: allure-report
           path: allure-report
 
-      - name: Upload Allure results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: allure-results
-          path: allure-results
-
-      # ---------------------------------------------------
-      # 9. Deploy to GitHub Pages
-      # ---------------------------------------------------
       - name: Deploy to GitHub Pages
         if: always()
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./allure-report
-
-
