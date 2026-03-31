@@ -29,12 +29,21 @@ on:
     - cron: '0 6 * * *'
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   test:
     name: Run Tests & Publish Report
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
       - name: Checkout code
@@ -79,25 +88,29 @@ jobs:
         run: |
           mkdir -p allure-results
           cp -r build/allure-results/* allure-results/ 2>/dev/null || echo "No test results found"
-          ls -la allure-results/
 
       - name: Generate Allure report
         if: always()
-        run: |
-          allure generate allure-results -o allure-report --clean
-          touch allure-report/.nojekyll
+        run: allure generate allure-results -o allure-report --clean
 
-      - name: Upload Allure report
+      - name: Upload Allure report artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-report
           path: allure-report
 
+      - name: Setup Pages
+        if: always()
+        uses: actions/configure-pages@v5
+
+      - name: Upload to GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: allure-report
+
       - name: Deploy to GitHub Pages
         if: always()
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./allure-report
-          enable_jekyll: false
+        id: deploy
+        uses: actions/deploy-pages@v4
