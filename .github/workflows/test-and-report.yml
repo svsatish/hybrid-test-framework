@@ -96,12 +96,20 @@ jobs:
       # ---------------------------------------------------
       # 6. Upload allure-results as artifact
       # ---------------------------------------------------
+      - name: Verify allure-results exist
+        if: always()
+        run: |
+          echo "--- build/allure-results ---"
+          ls -la build/allure-results/ 2>/dev/null || echo "⚠️ allure-results directory not found"
+          find build/allure-results -type f 2>/dev/null | wc -l || echo "0 files"
+
       - name: Upload Allure results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: allure-results
           path: build/allure-results/
+          if-no-files-found: warn
           retention-days: 30
 
       # ---------------------------------------------------
@@ -126,10 +134,13 @@ jobs:
 
     steps:
       # ---------------------------------------------------
-      # 1. Checkout code (for gh-pages history)
+      # 1. Set up JDK (Allure CLI requires Java to run)
       # ---------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
       # ---------------------------------------------------
       # 2. Download allure-results from test job
@@ -169,8 +180,19 @@ jobs:
           curl -sL https://github.com/allure-framework/allure2/releases/download/2.25.0/allure-2.25.0.tgz | tar -xz
           echo "$PWD/allure-2.25.0/bin" >> $GITHUB_PATH
 
+      - name: Verify allure-results
+        run: |
+          echo "--- workspace root ---"
+          ls -la
+          echo "--- allure-results ---"
+          ls -la allure-results/ || echo "❌ allure-results directory missing!"
+          echo "--- file count ---"
+          find allure-results -type f | wc -l
+
       - name: Generate Allure report
         run: |
+          java -version
+          allure --version
           allure generate allure-results -o allure-report --clean
           echo "✅ Allure report generated"
 
@@ -180,13 +202,14 @@ jobs:
 
       - name: Verify report contents
         run: |
-          echo "--- allure-report contents ---"
+          echo "--- allure-report root ---"
           ls -la allure-report/
+          echo "--- checking index.html ---"
           if [ ! -f "allure-report/index.html" ]; then
             echo "❌ ERROR: index.html not found in allure-report!"
             exit 1
           fi
-          echo "✅ index.html found"
+          echo "✅ index.html found ($(wc -c < allure-report/index.html) bytes)"
 
       # ---------------------------------------------------
       # 5. Preserve history for next run
